@@ -7,12 +7,14 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { MarketingBuddy } from "@/components/ui/marketing-buddy";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, BookOpen } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Roadmap() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [modules, setModules] = useState<ContentModule[]>([]);
+  const [allModules, setAllModules] = useState<ContentModule[]>([]);
   
   useEffect(() => {
     if (!user) {
@@ -31,7 +33,11 @@ export default function Roadmap() {
       user.primaryChannel
     );
     
+    // Fetch all modules for the gallery
+    const allAvailableModules = db.contentModules.getAll();
+    
     setModules(filteredModules);
+    setAllModules(allAvailableModules);
   }, [user, navigate]);
   
   const getModuleTypeLabel = (type: string) => {
@@ -80,6 +86,44 @@ export default function Roadmap() {
 Tap on any module to get started, or click the microphone button to ask me a question!`;
   };
   
+  const renderModulesList = (modulesList: ContentModule[]) => (
+    <>
+      {modulesList.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p>No modules found matching your preferences. Please try updating your preferences.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {modulesList.map((module) => (
+            <Card key={module.moduleId} className="h-full flex flex-col">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="text-lg">{module.title}</CardTitle>
+                  <Badge className={getModuleTypeColor(module.type)}>
+                    {getModuleTypeLabel(module.type)}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pb-4 flex-grow">
+                <p className="text-gray-600">{module.summary}</p>
+              </CardContent>
+              <CardFooter className="pt-0">
+                <Link 
+                  to={`/module/${module.moduleId}`}
+                  className="inline-flex items-center text-buddy-blue font-medium hover:underline"
+                >
+                  Explore <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
+  );
+  
   if (!user) return null;
   
   return (
@@ -89,41 +133,29 @@ Tap on any module to get started, or click the microphone button to ask me a que
           <MarketingBuddy message={getBuddyMessage()} showVoiceTrigger={true} />
         </div>
         
-        <h1 className="text-2xl font-bold mb-6">Your Marketing Roadmap</h1>
-        
-        {modules.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <p>No modules found matching your preferences. Please try updating your preferences.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {modules.map((module) => (
-              <Card key={module.moduleId} className="h-full flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-lg">{module.title}</CardTitle>
-                    <Badge className={getModuleTypeColor(module.type)}>
-                      {getModuleTypeLabel(module.type)}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pb-4 flex-grow">
-                  <p className="text-gray-600">{module.summary}</p>
-                </CardContent>
-                <CardFooter className="pt-0">
-                  <Link 
-                    to={`/module/${module.moduleId}`}
-                    className="inline-flex items-center text-buddy-blue font-medium hover:underline"
-                  >
-                    Explore <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </CardFooter>
-              </Card>
-            ))}
+        <Tabs defaultValue="personalized" className="mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold">Your Marketing Content</h1>
+            <TabsList className="grid grid-cols-2">
+              <TabsTrigger value="personalized" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" /> Personalized
+              </TabsTrigger>
+              <TabsTrigger value="all" className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4" /> Full Gallery
+              </TabsTrigger>
+            </TabsList>
           </div>
-        )}
+          
+          <TabsContent value="personalized">
+            <h2 className="text-xl font-semibold mb-4">Your Personalized Roadmap</h2>
+            {renderModulesList(modules)}
+          </TabsContent>
+          
+          <TabsContent value="all">
+            <h2 className="text-xl font-semibold mb-4">Complete Course Gallery</h2>
+            {renderModulesList(allModules)}
+          </TabsContent>
+        </Tabs>
       </div>
     </PageContainer>
   );
