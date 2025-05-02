@@ -7,14 +7,18 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { MarketingBuddy } from "@/components/ui/marketing-buddy";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowRight, BookOpen } from "lucide-react";
+import { ArrowRight, BookOpen, CircleCheck, Medal, Star, Trophy } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 
 export default function Roadmap() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [modules, setModules] = useState<ContentModule[]>([]);
   const [allModules, setAllModules] = useState<ContentModule[]>([]);
+  const [userProgress, setUserProgress] = useState<{[moduleId: string]: {completed: boolean, percentComplete: number}}>({});
+  const [userPoints, setUserPoints] = useState(0);
+  const [completedModules, setCompletedModules] = useState(0);
   
   useEffect(() => {
     if (!user) {
@@ -38,6 +42,17 @@ export default function Roadmap() {
     
     setModules(filteredModules);
     setAllModules(allAvailableModules);
+    
+    // Fetch user progress
+    if (user.email) {
+      const progress = db.userProgress.getProgress(user.email);
+      setUserProgress(progress || {});
+      setUserPoints(user.points || 0);
+      
+      // Count completed modules
+      const completed = Object.values(progress || {}).filter(p => p.completed).length;
+      setCompletedModules(completed);
+    }
   }, [user, navigate]);
   
   const getModuleTypeLabel = (type: string) => {
@@ -81,9 +96,15 @@ export default function Roadmap() {
       }
     })();
     
+    // Add progress information to the message
+    let progressMessage = "";
+    if (completedModules > 0) {
+      progressMessage = `\n\nAwesome job! You've completed ${completedModules} module${completedModules > 1 ? 's' : ''} and earned ${userPoints} points so far. Keep it up!`;
+    }
+    
     return `Hi ${user.displayName}! Based on your goal of ${goalText} using ${channelText}, I've created a personalized roadmap just for you.
 
-Tap on any module to get started, or click the microphone button to ask me a question!`;
+Tap on any module to get started, or click the microphone button to ask me a question!${progressMessage}`;
   };
   
   const renderModulesList = (modulesList: ContentModule[]) => (
@@ -96,29 +117,54 @@ Tap on any module to get started, or click the microphone button to ask me a que
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {modulesList.map((module) => (
-            <Card key={module.moduleId} className="h-full flex flex-col">
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{module.title}</CardTitle>
-                  <Badge className={getModuleTypeColor(module.type)}>
-                    {getModuleTypeLabel(module.type)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="pb-4 flex-grow">
-                <p className="text-gray-600">{module.summary}</p>
-              </CardContent>
-              <CardFooter className="pt-0">
-                <Link 
-                  to={`/module/${module.moduleId}`}
-                  className="inline-flex items-center text-buddy-blue font-medium hover:underline"
-                >
-                  Explore <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </CardFooter>
-            </Card>
-          ))}
+          {modulesList.map((module) => {
+            const moduleProgress = userProgress[module.moduleId] || { completed: false, percentComplete: 0 };
+            
+            return (
+              <Card key={module.moduleId} className="h-full flex flex-col">
+                <CardHeader className="pb-3">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-grow">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        {moduleProgress.completed && (
+                          <CircleCheck className="h-5 w-5 text-green-500" />
+                        )}
+                        {module.title}
+                      </CardTitle>
+                      
+                      {moduleProgress.percentComplete > 0 && moduleProgress.percentComplete < 100 && (
+                        <div className="mt-2">
+                          <Progress value={moduleProgress.percentComplete} className="h-1" />
+                          <p className="text-xs text-gray-500 mt-1">{moduleProgress.percentComplete}% complete</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end space-y-2">
+                      <Badge className={getModuleTypeColor(module.type)}>
+                        {getModuleTypeLabel(module.type)}
+                      </Badge>
+                      {module.pointValue && (
+                        <Badge variant="secondary" className="flex items-center gap-1">
+                          <Trophy className="h-3 w-3" /> {module.pointValue}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-4 flex-grow">
+                  <p className="text-gray-600">{module.summary}</p>
+                </CardContent>
+                <CardFooter className="pt-0">
+                  <Link 
+                    to={`/module/${module.moduleId}`}
+                    className="inline-flex items-center text-buddy-blue font-medium hover:underline"
+                  >
+                    {moduleProgress.completed ? 'Review Again' : 'Explore'} <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </CardFooter>
+              </Card>
+            );
+          })}
         </div>
       )}
     </>
@@ -131,6 +177,35 @@ Tap on any module to get started, or click the microphone button to ask me a que
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <MarketingBuddy message={getBuddyMessage()} showVoiceTrigger={true} />
+        </div>
+        
+        <div className="mb-8 bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-lg shadow-sm">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-amber-500" /> Your Learning Journey
+              </h2>
+              <p className="text-gray-600">Track your progress and earn rewards</p>
+            </div>
+            
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold flex items-center gap-1">
+                  <Medal className="h-5 w-5 text-purple-600" />
+                  {userPoints}
+                </div>
+                <div className="text-sm text-gray-600">Points</div>
+              </div>
+              
+              <div className="text-center">
+                <div className="text-2xl font-bold flex items-center gap-1">
+                  <Star className="h-5 w-5 text-amber-500" />
+                  {completedModules}
+                </div>
+                <div className="text-sm text-gray-600">Completed</div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <Tabs defaultValue="personalized" className="mb-6">

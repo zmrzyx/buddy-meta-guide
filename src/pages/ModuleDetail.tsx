@@ -9,16 +9,21 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Award, Circle, CircleCheck, Trophy } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ModuleDetail() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const [module, setModule] = useState<ContentModule | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [progress, setProgress] = useState(0);
+  const [isCompleted, setIsCompleted] = useState(false);
   
   useEffect(() => {
     if (!user) {
@@ -35,6 +40,15 @@ export default function ModuleDetail() {
     
     if (moduleData) {
       setModule(moduleData);
+      
+      // Load user progress for this module
+      if (user.email) {
+        const userProgress = db.userProgress.getProgress(user.email, moduleId);
+        if (userProgress) {
+          setProgress(userProgress.percentComplete);
+          setIsCompleted(userProgress.completed);
+        }
+      }
     } else {
       navigate("/roadmap");
     }
@@ -96,6 +110,31 @@ In the full app, you'd be able to watch the video right here and access addition
     }
   };
   
+  const handleMarkProgress = (percent: number) => {
+    if (!user?.email || !moduleId) return;
+    
+    const updatedUser = db.userProgress.updateProgress(user.email, moduleId, percent);
+    if (updatedUser) {
+      setProgress(percent);
+      setIsCompleted(percent >= 100);
+      
+      if (percent === 100) {
+        const pointsEarned = module?.pointValue || 0;
+        toast({
+          title: "Achievement Unlocked! 🏆",
+          description: `You've completed "${module?.title}" and earned ${pointsEarned} points!`,
+          duration: 5000,
+        });
+      } else {
+        toast({
+          title: "Progress Saved",
+          description: `You're ${percent}% through this module. Keep going!`,
+          duration: 3000,
+        });
+      }
+    }
+  };
+  
   if (isLoading || !module) return null;
   
   return (
@@ -119,13 +158,28 @@ In the full app, you'd be able to watch the video right here and access addition
                 <CardTitle className="text-2xl">{module.title}</CardTitle>
                 <CardDescription className="mt-2">{module.summary}</CardDescription>
               </div>
-              <Badge className={getModuleTypeColor(module.type)}>
-                {getModuleTypeLabel(module.type)}
-              </Badge>
+              <div className="flex flex-col items-end space-y-2">
+                <Badge className={getModuleTypeColor(module.type)}>
+                  {getModuleTypeLabel(module.type)}
+                </Badge>
+                {module.pointValue && (
+                  <Badge variant="secondary" className="flex items-center gap-1">
+                    <Trophy className="h-3 w-3" /> {module.pointValue} points
+                  </Badge>
+                )}
+              </div>
             </div>
           </CardHeader>
           
           <CardContent>
+            <div className="mb-6">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium">Your Progress</span>
+                <span className="text-sm">{progress}%</span>
+              </div>
+              <Progress value={progress} className="h-2" />
+            </div>
+            
             {module.type === "AI_Prompt" ? (
               <div className="space-y-6">
                 <div>
@@ -151,22 +205,42 @@ In the full app, you'd be able to watch the video right here and access addition
             )}
           </CardContent>
           
-          <CardFooter className="flex justify-end space-x-4">
-            {module.type === "AI_Prompt" ? (
-              <Button 
-                className="buddy-gradient-bg hover:opacity-90"
-                onClick={handleAskBuddy}
-              >
-                Ask Marketing Buddy
-              </Button>
-            ) : (
-              <Button 
-                className="buddy-gradient-bg hover:opacity-90"
-                onClick={handleViewContent}
-              >
-                View Full Content
-              </Button>
-            )}
+          <CardFooter className="flex flex-col sm:flex-row sm:justify-between items-center gap-4 pt-6">
+            <div className="flex gap-2">
+              {[25, 50, 75, 100].map((percent) => (
+                <Button 
+                  key={percent}
+                  variant={percent <= progress ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleMarkProgress(percent)}
+                >
+                  {percent === 100 ? (
+                    <CircleCheck className="h-4 w-4 mr-1" />
+                  ) : (
+                    <Circle className="h-4 w-4 mr-1" />
+                  )}
+                  {percent}%
+                </Button>
+              ))}
+            </div>
+            
+            <div>
+              {module.type === "AI_Prompt" ? (
+                <Button 
+                  className="buddy-gradient-bg hover:opacity-90"
+                  onClick={handleAskBuddy}
+                >
+                  Ask Marketing Buddy
+                </Button>
+              ) : (
+                <Button 
+                  className="buddy-gradient-bg hover:opacity-90"
+                  onClick={handleViewContent}
+                >
+                  View Full Content
+                </Button>
+              )}
+            </div>
           </CardFooter>
         </Card>
       </div>

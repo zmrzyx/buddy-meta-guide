@@ -10,6 +10,14 @@ export interface User {
   preferredFormat?: string;
   primaryChannel?: string;
   createdAt: Date;
+  progress?: {
+    [moduleId: string]: {
+      completed: boolean;
+      lastAccessed: Date;
+      percentComplete: number;
+    }
+  };
+  points?: number;
 }
 
 export interface ContentModule {
@@ -21,6 +29,7 @@ export interface ContentModule {
   goalTags: string[];
   channelTags: string[];
   promptTemplate?: string;
+  pointValue?: number;
 }
 
 // Mock data for content modules
@@ -33,6 +42,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["increase_sales", "local_awareness"],
     channelTags: ["facebook"],
+    pointValue: 100,
   },
   {
     moduleId: "mod-2",
@@ -42,6 +52,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["increase_engagement", "brand_awareness"],
     channelTags: ["instagram"],
+    pointValue: 100,
   },
   {
     moduleId: "mod-3",
@@ -51,6 +62,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["customer_service", "increase_sales"],
     channelTags: ["whatsapp"],
+    pointValue: 50,
   },
   {
     moduleId: "mod-4",
@@ -60,6 +72,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["increase_sales", "brand_awareness"],
     channelTags: ["facebook"],
+    pointValue: 50,
   },
   {
     moduleId: "mod-5",
@@ -69,6 +82,7 @@ const mockContentModules: ContentModule[] = [
     goalTags: ["increase_engagement", "brand_awareness"],
     channelTags: ["instagram"],
     promptTemplate: "I need 5 simple Instagram Story ideas for a [type of business] that wants to [specific goal]. Each idea should be quick to create and use everyday items or simple phone camera shots.",
+    pointValue: 25,
   },
   {
     moduleId: "mod-6",
@@ -78,6 +92,7 @@ const mockContentModules: ContentModule[] = [
     goalTags: ["local_awareness", "increase_engagement"],
     channelTags: ["facebook"],
     promptTemplate: "I run a local [type of business] and need 5 Facebook post ideas that would encourage people in my community to visit my store. The posts should be friendly and highlight why local customers would want to stop by.",
+    pointValue: 25,
   },
   {
     moduleId: "mod-7",
@@ -87,6 +102,7 @@ const mockContentModules: ContentModule[] = [
     goalTags: ["customer_service"],
     channelTags: ["whatsapp"],
     promptTemplate: "I need 5 professional but friendly WhatsApp message templates for responding to customers of my [type of business]. Include templates for: 1) Answering product questions, 2) Handling complaints politely, 3) Following up after a purchase, 4) Announcing a new product/service, 5) Thanking a repeat customer.",
+    pointValue: 25,
   },
   {
     moduleId: "mod-8",
@@ -96,6 +112,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["increase_sales", "brand_awareness", "local_awareness"],
     channelTags: ["facebook", "instagram", "whatsapp"],
+    pointValue: 100,
   },
   {
     moduleId: "mod-9",
@@ -105,6 +122,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["increase_engagement", "brand_awareness"],
     channelTags: ["instagram", "facebook"],
+    pointValue: 50,
   },
   {
     moduleId: "mod-10",
@@ -114,6 +132,7 @@ const mockContentModules: ContentModule[] = [
     sourceUrl: "#",
     goalTags: ["increase_sales"],
     channelTags: ["whatsapp"],
+    pointValue: 100,
   },
 ];
 
@@ -127,6 +146,8 @@ export const db = {
         email,
         displayName,
         createdAt: new Date(),
+        progress: {},
+        points: 0
       };
       
       localStorage.setItem(`user_${email}`, JSON.stringify(newUser));
@@ -164,6 +185,51 @@ export const db = {
         const matchesChannel = !channelTag || module.channelTags.includes(channelTag);
         return matchesGoal && matchesChannel;
       });
+    },
+  },
+  
+  // Progress tracking functions
+  userProgress: {
+    updateProgress: (email: string, moduleId: string, percentComplete: number): User | null => {
+      const user = db.users.getByEmail(email);
+      if (!user) return null;
+      
+      const progress = user.progress || {};
+      const isCompleted = percentComplete >= 100;
+      
+      // If this is the first time completing the module, award points
+      const module = db.contentModules.getById(moduleId);
+      let pointsToAdd = 0;
+      
+      if (module && isCompleted && (!progress[moduleId] || !progress[moduleId].completed)) {
+        pointsToAdd = module.pointValue || 0;
+      }
+      
+      // Update progress
+      progress[moduleId] = {
+        completed: isCompleted,
+        lastAccessed: new Date(),
+        percentComplete: Math.min(percentComplete, 100)
+      };
+      
+      // Update user
+      const updatedUser = {
+        ...user,
+        progress,
+        points: (user.points || 0) + pointsToAdd
+      };
+      
+      localStorage.setItem(`user_${email}`, JSON.stringify(updatedUser));
+      return updatedUser;
+    },
+    
+    getProgress: (email: string, moduleId?: string) => {
+      const user = db.users.getByEmail(email);
+      if (!user || !user.progress) {
+        return moduleId ? null : {};
+      }
+      
+      return moduleId ? user.progress[moduleId] || null : user.progress;
     }
   }
 };
